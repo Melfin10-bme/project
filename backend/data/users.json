@@ -14,5 +14,13 @@
     "password": "$2b$12$hN1SU8UpG5kFxAt98lKVr.AWOZBcPhXsrUPZJsvkzpH9X1ynjAiaO",
     "role": "Admin",
     "createdAt": "2026-04-05T11:24:27.256753"
+  },
+  "7b7c47f3-3364-4f7a-9de3-d1fdde5eed86": {
+    "id": "7b7c47f3-3364-4f7a-9de3-d1fdde5eed86",
+    "username": "melfinnqwe",
+    "email": "dragonblaster400@gmail.com",
+    "password": "$2b$12$oVZGlvQDZKxN1PFTKcD.MuX9YM3qigBtgLN1Okyl9W8tKNFJKmXpe",
+    "role": "Admin",
+    "createdAt": "2026-04-05T21:25:09.587380"
   }
 }
