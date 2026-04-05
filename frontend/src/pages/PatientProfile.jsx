@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, Calendar, MapPin, Activity, FileText, Download, Trash2, FlaskConical } from 'lucide-react';
-import { getPatient, getTests, getTest, generatePDFReport, generateCSVReport } from '../services/api';
+import { getPatient, getTests, getTest, generatePDFReport, generateCSVReport, generatePatientQR, generateTestQR, confirmTest } from '../services/api';
 
 // Helper function to download base64 data
 const downloadBase64File = (base64Data, filename, mimeType) => {
@@ -19,6 +19,10 @@ function PatientProfile({ showToast }) {
   const [tests, setTests] = useState([]);
   const [selectedTest, setSelectedTest] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [patientQR, setPatientQR] = useState(null);
+  const [testQR, setTestQR] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmData, setConfirmData] = useState({ confirmedBy: '', confirmSignature: '' });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -26,11 +30,28 @@ function PatientProfile({ showToast }) {
         const patientData = await getPatient(id);
         setPatient(patientData);
 
+        // Load patient QR code
+        try {
+          const qr = await generatePatientQR(id);
+          console.log('Patient QR loaded:', qr.qrCode ? 'success' : 'empty');
+          setPatientQR(qr.qrCode);
+        } catch (e) {
+          console.error('Patient QR error:', e);
+        }
+
         const allTests = await getTests(id);
         setTests(allTests.reverse());
 
         if (allTests.length > 0) {
           setSelectedTest(allTests[0]);
+          // Load test QR code
+          try {
+            const tqr = await generateTestQR(allTests[0].id);
+            console.log('Test QR loaded:', tqr.qrCode ? 'success' : 'empty');
+            setTestQR(tqr.qrCode);
+          } catch (e) {
+            console.error('Test QR error:', e);
+          }
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -42,6 +63,33 @@ function PatientProfile({ showToast }) {
 
     fetchData();
   }, [id]);
+
+  const handleConfirmTest = async () => {
+    if (!selectedTest) return;
+    try {
+      await confirmTest(selectedTest.id, confirmData.confirmedBy, confirmData.confirmSignature);
+      showToast('Test confirmed successfully!', 'success');
+      setShowConfirmModal(false);
+      // Refresh tests
+      const allTests = await getTests(id);
+      setTests(allTests.reverse());
+      setSelectedTest(allTests.find(t => t.id === selectedTest.id));
+    } catch (error) {
+      showToast(error.message || 'Error confirming test', 'error');
+    }
+  };
+
+  const handleTestSelect = async (test) => {
+    setSelectedTest(test);
+    setTestQR(null);
+    try {
+      const tqr = await generateTestQR(test.id);
+      console.log('Test QR loaded on select:', tqr.qrCode ? 'success' : 'empty');
+      setTestQR(tqr.qrCode);
+    } catch (e) {
+      console.error('Test QR error on select:', e);
+    }
+  };
 
   const handleGenerateReport = async (format) => {
     if (!selectedTest) return;
@@ -137,6 +185,14 @@ function PatientProfile({ showToast }) {
             <span className="text-sm">Since {new Date(patient.createdAt).toLocaleDateString()}</span>
           </div>
         </div>
+
+        {/* QR Code Section */}
+        {patientQR && (
+          <div className="mt-4 p-4 bg-slate-700/50 rounded-xl">
+            <h3 className="text-sm font-medium text-white mb-2">Patient QR Code</h3>
+            <img src={patientQR} alt="Patient QR" className="w-24 h-24" />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -148,7 +204,7 @@ function PatientProfile({ showToast }) {
               tests.map((test) => (
                 <button
                   key={test.id}
-                  onClick={() => setSelectedTest(test)}
+                  onClick={() => handleTestSelect(test)}
                   className={`w-full p-3 rounded-xl text-left transition-colors ${
                     selectedTest?.id === test.id
                       ? 'bg-primary-700/50 border border-primary-600/50'
@@ -181,6 +237,24 @@ function PatientProfile({ showToast }) {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-white">Test Details</h2>
                 <div className="flex gap-2">
+                  {/* Confirm button for positive tests that need confirmation */}
+                  {selectedTest.needsConfirmation && !selectedTest.confirmed && (
+                    <button
+                      onClick={() => setShowConfirmModal(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 rounded-lg text-white text-sm transition-colors"
+                    >
+                      Confirm
+                    </button>
+                  )}
+                  {/* Confirmed badge */}
+                  {selectedTest.confirmed && (
+                    <span className="flex items-center gap-1 px-3 py-1.5 bg-green-700 rounded-lg text-white text-sm">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Confirmed
+                    </span>
+                  )}
                   <button
                     onClick={() => handleGenerateReport('PDF')}
                     className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-white text-sm transition-colors"
@@ -263,7 +337,63 @@ function PatientProfile({ showToast }) {
             </div>
           )}
         </div>
+
+        {/* Test QR Code */}
+        {testQR && selectedTest && (
+          <div className="mt-4 p-4 bg-slate-700/50 rounded-xl">
+            <h3 className="text-sm font-medium text-white mb-2">Test QR Code</h3>
+            <img src={testQR} alt="Test QR" className="w-24 h-24" />
+          </div>
+        )}
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-white mb-4">Confirm Test Result</h3>
+            <p className="text-slate-400 mb-4">
+              You are confirming a positive test result. This action requires a second technician's verification.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Confirmed By (Name/ID)</label>
+                <input
+                  type="text"
+                  value={confirmData.confirmedBy}
+                  onChange={(e) => setConfirmData({ ...confirmData, confirmedBy: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Signature/ID</label>
+                <input
+                  type="text"
+                  value={confirmData.confirmSignature}
+                  onChange={(e) => setConfirmData({ ...confirmData, confirmSignature: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmTest}
+                className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg text-white"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,11 @@
+{
+  "e3626368-b397-4e36-9331-62116291822d": {
+    "id": "e3626368-b397-4e36-9331-62116291822d",
+    "userId": "",
+    "title": "Test Confirmation Required",
+    "message": "New positive test #bc3be7e1 requires confirmation",
+    "type": "warning",
+    "read": false,
+    "createdAt": "2026-04-05T11:03:30.039333"
+  }
+}

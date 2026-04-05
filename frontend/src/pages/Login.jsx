@@ -70,6 +70,15 @@ function Login({ showToast }) {
             Register
           </Link>
         </p>
+
+        <div className="border-t border-slate-700 mt-6 pt-6">
+          <p className="text-center text-slate-400 text-sm">
+            Are you a patient?{' '}
+            <Link to="/patient-login" className="text-primary-400 hover:text-primary-300">
+              Patient Portal Login
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

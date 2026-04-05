@@ -1,0 +1,18 @@
+{
+  "4f0df1f1-68ce-4ee9-9349-35b9445fae62": {
+    "id": "4f0df1f1-68ce-4ee9-9349-35b9445fae62",
+    "username": "melfin",
+    "email": "dragonblaster400@gmail.com",
+    "password": "$2b$12$qxw4R4XT8JTFLbQ3fF3hPOsF1xmI3TtPZliRgdf.sEti8jZIkI0MO",
+    "role": "Doctor",
+    "createdAt": "2026-04-05T11:10:40.529049"
+  },
+  "4d9d2b23-9403-41fb-a24d-f7d04b8e2cbb": {
+    "id": "4d9d2b23-9403-41fb-a24d-f7d04b8e2cbb",
+    "username": "melfin12",
+    "email": "dragonblaster400@gmail.com",
+    "password": "$2b$12$hN1SU8UpG5kFxAt98lKVr.AWOZBcPhXsrUPZJsvkzpH9X1ynjAiaO",
+    "role": "Admin",
+    "createdAt": "2026-04-05T11:24:27.256753"
+  }
+}

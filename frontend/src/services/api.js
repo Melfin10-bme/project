@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 // Helper function for making API requests
 async function request(endpoint, options = {}) {
@@ -51,6 +51,14 @@ export const deleteUser = (id) => request(`/users/${id}`, {
   method: 'DELETE',
 });
 
+// ============= Sessions API =============
+
+export const getSessions = () => request('/sessions');
+
+export const revokeSession = (sessionId) => request(`/sessions/${sessionId}`, {
+  method: 'DELETE',
+});
+
 // ============= Appointments API =============
 
 export const getAppointments = (patientId = null) => {
@@ -91,6 +99,13 @@ export const updatePatient = (id, patient) => request(`/patients/${id}`, {
 export const deletePatient = (id) => request(`/patients/${id}`, {
   method: 'DELETE',
 });
+
+export const updatePatientTreatment = (id, treatment) => request(`/patients/${id}/treatment`, {
+  method: 'PUT',
+  body: treatment,
+});
+
+export const getTreatmentStats = () => request('/patients/treatment-stats');
 
 // ============= Test API =============
 
@@ -159,12 +174,84 @@ export const generateFakeData = (numPatients = 50) => request(`/generate-fake-da
 
 export const healthCheck = () => request('/health');
 
+// ============= Test Confirmation API =============
+
+export const confirmTest = (testId, confirmedBy, confirmSignature) => request('/tests/confirm', {
+  method: 'POST',
+  body: { testId, confirmedBy, confirmSignature },
+});
+
+// ============= Notifications API =============
+
+export const getNotifications = (userId = null) => {
+  const endpoint = userId ? `/notifications?userId=${userId}` : '/notifications';
+  return request(endpoint);
+};
+
+export const markNotificationRead = (notificationId) => request(`/notifications/mark-read/${notificationId}`, {
+  method: 'POST',
+});
+
+export const createNotification = (notification) => request('/notifications', {
+  method: 'POST',
+  body: notification,
+});
+
+// ============= QR Code API =============
+
+export const generatePatientQR = (patientId) => request(`/qrcode/patient/${patientId}`);
+
+export const generateTestQR = (testId) => request(`/qrcode/test/${testId}`);
+
+// ============= Data Export/Backup API =============
+
+export const exportBackup = () => request('/backup/export');
+
+export const importBackup = (data) => request('/backup/import', {
+  method: 'POST',
+  body: data,
+});
+
+export const exportPatientsCSV = () => request('/export/patients-csv');
+
+// ============= Audit Log API =============
+
+export const getAuditLogs = (userId = null, resourceType = null) => {
+  const params = new URLSearchParams();
+  if (userId) params.append('userId', userId);
+  if (resourceType) params.append('resourceType', resourceType);
+  const queryString = params.toString();
+  const endpoint = queryString ? `/audit/logs?${queryString}` : '/audit/logs';
+  return request(endpoint);
+};
+
+// ============= Patient Portal API =============
+
+export const registerPatientPortal = (patientId, accessCode, email, password) =>
+  request('/patient-portal/register', {
+    method: 'POST',
+    body: { patientId, accessCode, email, password },
+  });
+
+export const loginPatientPortal = (patientId, accessCode) =>
+  request('/patient-portal/login', {
+    method: 'POST',
+    body: { patientId, accessCode },
+  });
+
+export const getPatientPortalData = (patientId, accessCode) =>
+  request(`/patient-portal/data/${patientId}?access_code=${accessCode}`);
+
 export default {
   getPatients,
   getPatient,
   createPatient,
   updatePatient,
   deletePatient,
+  updatePatientTreatment,
+  getTreatmentStats,
+  getSessions,
+  revokeSession,
   getTests,
   getTest,
   createTest,
@@ -178,4 +265,15 @@ export default {
   sendChatMessage,
   generateFakeData,
   healthCheck,
+  confirmTest,
+  getNotifications,
+  markNotificationRead,
+  generatePatientQR,
+  generateTestQR,
+  exportBackup,
+  exportPatientsCSV,
+  getAuditLogs,
+  registerPatientPortal,
+  loginPatientPortal,
+  getPatientPortalData,
 };

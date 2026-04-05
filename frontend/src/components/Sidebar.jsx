@@ -10,6 +10,10 @@ import {
   LogOut,
   Shield,
   Calendar,
+  Bell,
+  Download,
+  QrCode,
+  Clock,
 } from 'lucide-react';
 
 const navItems = [
@@ -23,6 +27,9 @@ const navItems = [
 
 const adminNavItems = [
   { path: '/users', icon: Shield, label: 'Users' },
+  { path: '/backup', icon: Download, label: 'Backup & Export' },
+  { path: '/audit', icon: Activity, label: 'Audit Logs' },
+  { path: '/sessions', icon: Clock, label: 'Sessions' },
 ];
 
 function Sidebar({ isOpen, setIsOpen, user, onLogout }) {

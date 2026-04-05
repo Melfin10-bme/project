@@ -15,6 +15,11 @@ import ThemeToggle from './components/ThemeToggle';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Users from './pages/Users';
+import PatientLogin from './pages/PatientLogin';
+import PatientPortal from './pages/PatientPortal';
+import BackupExport from './pages/BackupExport';
+import AuditLogs from './pages/AuditLogs';
+import Sessions from './pages/Sessions';
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -62,6 +67,8 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login showToast={showToast} />} />
             <Route path="/register" element={<Register showToast={showToast} />} />
+            <Route path="/patient-login" element={<PatientLogin showToast={showToast} />} />
+            <Route path="/patient-portal" element={<PatientPortal showToast={showToast} />} />
             <Route path="*" element={<Navigate to="/login" />} />
           </Routes>
           {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -100,7 +107,7 @@ function App() {
           </header>
 
           {/* Main Content */}
-          <main className="pt-16 p-6 min-h-screen">
+          <main className="pt-16 p-6 min-h-screen bg-slate-900">
             <Routes>
               <Route path="/" element={<Dashboard showToast={showToast} />} />
               <Route path="/patients" element={<Patients showToast={showToast} />} />
@@ -110,7 +117,12 @@ function App() {
               <Route path="/reports" element={<Reports showToast={showToast} />} />
               <Route path="/appointments" element={<Appointments showToast={showToast} />} />
               {(user.role === 'Admin' || user.role === 'Doctor') && (
-                <Route path="/users" element={<Users showToast={showToast} />} />
+                <>
+                  <Route path="/users" element={<Users showToast={showToast} />} />
+                  <Route path="/backup" element={<BackupExport showToast={showToast} />} />
+                  <Route path="/audit" element={<AuditLogs showToast={showToast} />} />
+                  <Route path="/sessions" element={<Sessions showToast={showToast} />} />
+                </>
               )}
             </Routes>
           </main>
