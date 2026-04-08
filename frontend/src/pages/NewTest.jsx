@@ -249,6 +249,40 @@ function NewTest({ showToast }) {
           )}
         </div>
 
+        {/* Test Type Selection */}
+        <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700">
+          <h2 className="text-lg font-semibold text-white mb-4">Test Type</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              className="py-3 bg-teal-600 text-white rounded-xl font-medium"
+            >
+              Nanopaper Test
+            </button>
+            <button
+              type="button"
+              onClick={() => showToast('Coming soon!', 'info')}
+              className="py-3 bg-slate-700 text-slate-400 rounded-xl font-medium"
+            >
+              Blood Test
+            </button>
+            <button
+              type="button"
+              onClick={() => showToast('Coming soon!', 'info')}
+              className="py-3 bg-slate-700 text-slate-400 rounded-xl font-medium"
+            >
+              Stool Test
+            </button>
+            <button
+              type="button"
+              onClick={() => showToast('Coming soon!', 'info')}
+              className="py-3 bg-slate-700 text-slate-400 rounded-xl font-medium"
+            >
+              Breath Test
+            </button>
+          </div>
+        </div>
+
         {/* Signal Input */}
         <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700">
           <h2 className="text-lg font-semibold text-white mb-4">Binary Signal Input</h2>

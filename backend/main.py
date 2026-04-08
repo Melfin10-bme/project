@@ -13,6 +13,10 @@ from datetime import datetime
 import json
 import os
 import csv
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1491,42 +1495,840 @@ def create_notification_endpoint(notification: NotificationCreate):
     """Create a new notification"""
     return create_notification(notification)
 
+# ============= QR Code Caching =============
+
+# Simple in-memory cache for QR codes
+qr_code_cache = {}
+QR_CACHE_TTL = 300  # Cache for 5 minutes
+
 # ============= QR Code Endpoints =============
+
+# Generate a secure token for patient QR codes
+def generate_patient_token(patient_id: str) -> str:
+    """Generate a secure token for patient QR code"""
+    import hashlib
+    timestamp = str(datetime.now().timestamp())
+    data = f"{patient_id}-{timestamp}-{SECRET_KEY}"
+    return hashlib.sha256(data.encode()).hexdigest()[:16]
 
 @app.get("/api/qrcode/patient/{patient_id}", response_model=QRCodeResponse)
 def generate_patient_qr(patient_id: str):
-    """Generate QR code for patient ID"""
-    qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    # Full URL to patient profile - works on mobile
-    qr.add_data(f"{FRONTEND_URL}/#/patients/{patient_id}")
+    """Generate QR code for patient ID with secure token"""
+    import time
+    # Check cache first
+    cache_key = f"patient_{patient_id}"
+    if cache_key in qr_code_cache:
+        cached_data, cached_time = qr_code_cache[cache_key]
+        if time.time() - cached_time < QR_CACHE_TTL:
+            return QRCodeResponse(qrCode=cached_data)
+
+    # Generate unique token for this patient
+    patient = patients_db.get(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Generate or get existing token
+    patient_token = patient.get('scanToken')
+    if not patient_token:
+        patient_token = generate_patient_token(patient_id)
+        patient['scanToken'] = patient_token
+        patients_db[patient_id] = patient
+
+    qr = qrcode.QRCode(version=None, box_size=6, border=2, error_correction=qrcode.constants.ERROR_CORRECT_L)
+    # Use /scan route with token for secure access
+    qr.add_data(f"{FRONTEND_URL}/scan/{patient_id}?token={patient_token}")
     qr.make(fit=True)
 
     img = qr.make_image(fill_color="black", back_color="white")
     buffer = BytesIO()
     img.save(buffer, format='PNG')
     qr_code = base64.b64encode(buffer.getvalue()).decode()
+    qr_code_data = f"data:image/png;base64,{qr_code}"
 
-    return QRCodeResponse(qrCode=f"data:image/png;base64,{qr_code}")
+    # Cache the result
+    qr_code_cache[cache_key] = (qr_code_data, time.time())
+
+    return QRCodeResponse(qrCode=qr_code_data)
 
 @app.get("/api/qrcode/test/{test_id}", response_model=QRCodeResponse)
 def generate_test_qr(test_id: str):
-    """Generate QR code for test ID"""
-    qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    # Find patient for this test to link to patient profile
+    """Generate QR code for test ID with secure token"""
+    import time
+    # Check cache first
+    cache_key = f"test_{test_id}"
+    if cache_key in qr_code_cache:
+        cached_data, cached_time = qr_code_cache[cache_key]
+        if time.time() - cached_time < QR_CACHE_TTL:
+            return QRCodeResponse(qrCode=cached_data)
+
+    qr = qrcode.QRCode(version=None, box_size=6, border=2, error_correction=qrcode.constants.ERROR_CORRECT_L)
     test = tests_db.get(test_id)
     if test and test.get('patientId'):
-        # Link to patient profile - tests are viewed there
-        qr.add_data(f"{FRONTEND_URL}/#/patients/{test['patientId']}")
+        patient = patients_db.get(test['patientId'])
+        patient_token = patient.get('scanToken') if patient else None
+        if not patient_token:
+            patient_token = generate_patient_token(test['patientId'])
+            if patient:
+                patient['scanToken'] = patient_token
+                patients_db[test['patientId']] = patient
+        # Use /scan route with token
+        qr.add_data(f"{FRONTEND_URL}/scan/{test['patientId']}/{test_id}?token={patient_token}")
     else:
-        qr.add_data(f"{FRONTEND_URL}/#/patients")
+        qr.add_data(f"{FRONTEND_URL}/scan")
     qr.make(fit=True)
 
     img = qr.make_image(fill_color="black", back_color="white")
     buffer = BytesIO()
     img.save(buffer, format='PNG')
     qr_code = base64.b64encode(buffer.getvalue()).decode()
+    qr_code_data = f"data:image/png;base64,{qr_code}"
 
-    return QRCodeResponse(qrCode=f"data:image/png;base64,{qr_code}")
+    # Cache the result
+    qr_code_cache[cache_key] = (qr_code_data, time.time())
+
+    return QRCodeResponse(qrCode=qr_code_data)
+
+# ============= Public Scan Endpoints (No Auth Required) =============
+
+@app.get("/api/scan/patient/{patient_id}")
+def scan_patient(patient_id: str, token: str = None):
+    """Get patient data for QR code scanning - token required"""
+    patient = patients_db.get(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Verify token if present
+    patient_token = patient.get('scanToken')
+    if patient_token and token != patient_token:
+        raise HTTPException(status_code=403, detail="Invalid access token")
+
+    # Get patient's tests
+    patient_tests = [
+        {
+            "id": test_id,
+            "patientId": test["patientId"],
+            "testType": test.get("testType", "Nanopaper"),
+            "prediction": test.get("prediction", "Pending"),
+            "confidence": test.get("confidence", 0),
+            "nanopaperColor": test.get("nanopaperColor", "Unknown"),
+            "analyzedAt": test.get("analyzedAt", "N/A"),
+            "confirmed": test.get("confirmed", False),
+            "binarySignal": test.get("binarySignal", ""),
+            "signalLength": test.get("signalLength", 0)
+        }
+        for test_id, test in tests_db.items()
+        if test.get("patientId") == patient_id
+    ]
+    # Sort by date (newest first)
+    patient_tests.sort(key=lambda x: x["analyzedAt"], reverse=True)
+
+    return {
+        "patient": {
+            "id": patient.get("id"),
+            "name": patient.get("name"),
+            "age": patient.get("age"),
+            "gender": patient.get("gender"),
+            "email": patient.get("email", ""),
+            "phone": patient.get("phone", "")
+        },
+        "tests": patient_tests
+    }
+
+# ============= Patient Appointment Booking (No Auth) =============
+
+class PatientAppointmentCreate(BaseModel):
+    patientId: str
+    patientName: str
+    phone: str
+    email: str
+    date: str
+    time: str
+    notes: str = ""
+
+@app.post("/api/scan/appointment", response_model=AppointmentResponse)
+def create_patient_appointment(appointment: PatientAppointmentCreate):
+    """Patient books an appointment without login"""
+    appointment_id = generate_id()
+    timestamp = get_timestamp()
+
+    appointment_data = {
+        "id": appointment_id,
+        "patientId": appointment.patientId,
+        "patientName": appointment.patientName,
+        "phone": appointment.phone,
+        "email": appointment.email,
+        "date": appointment.date,
+        "time": appointment.time,
+        "notes": appointment.notes,
+        "status": "Pending",
+        "createdAt": timestamp
+    }
+
+    appointments_db[appointment_id] = appointment_data
+
+    # Create notification for admin
+    notification_id = generate_id()
+    notifications_db[notification_id] = {
+        "id": notification_id,
+        "type": "appointment_request",
+        "title": "New Appointment Request",
+        "message": f"{appointment.patientName} requested an appointment for {appointment.date} at {appointment.time}",
+        "read": False,
+        "createdAt": timestamp
+    }
+
+    return appointment_data
+
+# ============= Patient Self-Registration =============
+
+class PatientSelfRegister(BaseModel):
+    patientId: str
+    name: str
+    email: str
+    phone: str
+    password: str
+
+@app.post("/api/scan/register")
+def patient_self_register(request: PatientSelfRegister):
+    """Patient creates their own portal account"""
+    # Check if patient exists
+    patient = patients_db.get(request.patientId)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Check if portal account already exists
+    if request.patientId in patient_portal_db:
+        raise HTTPException(status_code=400, detail="Account already exists")
+
+    # Create portal account
+    password_hash = get_password_hash(request.password)
+    patient_portal_db[request.patientId] = {
+        "patientId": request.patientId,
+        "name": request.name,
+        "email": request.email,
+        "phone": request.phone,
+        "password": password_hash,
+        "createdAt": get_timestamp()
+    }
+
+    # Generate scan token for patient
+    patient['scanToken'] = generate_patient_token(request.patientId)
+    patients_db[request.patientId] = patient
+
+    return {"message": "Account created successfully", "patientId": request.patientId}
+
+# ============= Send Result Notification =============
+
+@app.post("/api/scan/notify")
+def send_result_notification(patient_id: str):
+    """Send notification to patient about new test results"""
+    patient = patients_db.get(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Get latest test
+    patient_tests = [t for t in tests_db.values() if t.get("patientId") == patient_id]
+    if not patient_tests:
+        raise HTTPException(status_code=404, detail="No tests found")
+
+    latest_test = max(patient_tests, key=lambda x: x.get("analyzedAt", ""))
+
+    # Create notification (simulated SMS/Email)
+    notification_id = generate_id()
+    notifications_db[notification_id] = {
+        "id": notification_id,
+        "type": "test_result",
+        "title": "Test Result Available",
+        "message": f"Hi {patient.get('name')}, your H. pylori test result is ready. Result: {latest_test.get('prediction')}",
+        "patientId": patient_id,
+        "email": patient.get("email", ""),
+        "phone": patient.get("phone", ""),
+        "sent": True,
+        "createdAt": get_timestamp()
+    }
+
+    return {"message": "Notification sent successfully", "notificationId": notification_id}
+
+# ============= PDF Report for Scan =============
+
+@app.get("/api/scan/patient/{patient_id}/report")
+def generate_scan_report(patient_id: str, token: str = None):
+    """Generate PDF report for patient (no auth required)"""
+    patient = patients_db.get(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Verify token
+    patient_token = patient.get('scanToken')
+    if patient_token and token != patient_token:
+        raise HTTPException(status_code=403, detail="Invalid access token")
+
+    # Get patient's tests
+    patient_tests = [
+        {
+            "id": test_id,
+            "testType": test.get("testType", "Nanopaper"),
+            "prediction": test.get("prediction", "Pending"),
+            "confidence": test.get("confidence", 0),
+            "nanopaperColor": test.get("nanopaperColor", "Unknown"),
+            "analyzedAt": test.get("analyzedAt", "N/A"),
+            "confirmed": test.get("confirmed", False),
+            "notes": test.get("notes", ""),
+            "prescription": test.get("prescription", "")
+        }
+        for test_id, test in tests_db.items()
+        if test.get("patientId") == patient_id
+    ]
+    patient_tests.sort(key=lambda x: x["analyzedAt"], reverse=True)
+
+    # Generate PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    # Title
+    elements.append(Paragraph("H. pylori Test Report", styles['Title']))
+    elements.append(Spacer(1, 20))
+
+    # Patient Info
+    elements.append(Paragraph("Patient Information", styles['Heading2']))
+    patient_info = [
+        ["Name:", patient.get("name", "N/A")],
+        ["ID:", patient.get("id", "N/A")],
+        ["Age:", str(patient.get("age", "N/A"))],
+        ["Gender:", patient.get("gender", "N/A")],
+        ["Email:", patient.get("email", "N/A")],
+        ["Phone:", patient.get("phone", "N/A")]
+    ]
+    t = Table(patient_info, colWidths=[100, 300])
+    t.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 12),
+    ]))
+    elements.append(t)
+    elements.append(Spacer(1, 20))
+
+    # Test Results
+    elements.append(Paragraph("Test Results", styles['Heading2']))
+    for test in patient_tests:
+        elements.append(Paragraph(
+            f"Test Date: {test['analyzedAt']} | Type: {test['testType']} | "
+            f"Result: {test['prediction']} | Confidence: {test['confidence']}%",
+            styles['Normal']
+        ))
+        if test.get('notes'):
+            elements.append(Paragraph(f"Notes: {test['notes']}", styles['Normal']))
+        if test.get('prescription'):
+            elements.append(Paragraph(f"Prescription: {test['prescription']}", styles['Normal']))
+        elements.append(Spacer(1, 10))
+
+    # Footer
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph(
+        f"Report generated on {get_timestamp()}",
+        styles['Normal']
+    ))
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    return {
+        "filename": f"hpylori_report_{patient_id}.pdf",
+        "content": base64.b64encode(buffer.getvalue()).decode()
+    }
+
+# ============= Doctor Notes & Prescriptions =============
+
+class DoctorNotesUpdate(BaseModel):
+    notes: str = ""
+    prescription: str = ""
+
+@app.put("/api/scan/test/{test_id}/notes")
+def update_test_notes(test_id: str, notes: DoctorNotesUpdate):
+    """Update test notes and prescription (doctor only)"""
+    test = tests_db.get(test_id)
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    if notes.notes:
+        test['notes'] = notes.notes
+    if notes.prescription:
+        test['prescription'] = notes.prescription
+    test['updatedAt'] = get_timestamp()
+    tests_db[test_id] = test
+
+    return {"message": "Notes updated", "test": test}
+
+# ============= Medication Reminders =============
+
+class MedicationReminder(BaseModel):
+    patientId: str
+    medication: str
+    dosage: str
+    frequency: str
+    duration: str
+
+medication_reminders_db = {}
+
+@app.post("/api/scan/reminder")
+def create_medication_reminder(reminder: MedicationReminder):
+    """Create medication reminder for patient"""
+    reminder_id = generate_id()
+    medication_reminders_db[reminder_id] = {
+        "id": reminder_id,
+        "patientId": reminder.patientId,
+        "medication": reminder.medication,
+        "dosage": reminder.dosage,
+        "frequency": reminder.frequency,
+        "duration": reminder.duration,
+        "createdAt": get_timestamp(),
+        "active": True
+    }
+    return {"message": "Reminder created", "reminderId": reminder_id}
+
+@app.get("/api/scan/patient/{patient_id}/reminders")
+def get_patient_reminders(patient_id: str, token: str = None):
+    """Get medication reminders for patient"""
+    patient = patients_db.get(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    patient_token = patient.get('scanToken')
+    if patient_token and token != patient_token:
+        raise HTTPException(status_code=403, detail="Invalid access token")
+
+    reminders = [r for r in medication_reminders_db.values() if r.get("patientId") == patient_id and r.get("active")]
+    return {"reminders": reminders}
+
+# ============= Patient Feedback =============
+
+class PatientFeedback(BaseModel):
+    patientId: str
+    rating: int
+    comment: str
+
+feedback_db = {}
+
+@app.post("/api/scan/feedback")
+def submit_patient_feedback(feedback: PatientFeedback):
+    """Submit patient feedback"""
+    feedback_id = generate_id()
+    feedback_db[feedback_id] = {
+        "id": feedback_id,
+        "patientId": feedback.patientId,
+        "rating": feedback.rating,
+        "comment": feedback.comment,
+        "createdAt": get_timestamp()
+    }
+    return {"message": "Feedback submitted", "feedbackId": feedback_id}
+
+# ============= Emergency Info =============
+
+emergency_info = {
+    "hotline": "1999",
+    "emergency_contact": "+94 11 269 1111",
+    "treatment_centers": [
+        {"name": "National Hospital of Sri Lanka", "phone": "+94 11 269 1111"},
+        {"name": "Teaching Hospital Anuradhapura", "phone": "+94 25 222 2235"},
+        {"name": "Teaching Hospital Kandy", "phone": "+94 81 222 2231"}
+    ],
+    "treatment_info": {
+        "positive": "If tested positive, please consult a doctor immediately. Treatment typically involves a 14-day course of antibiotics.",
+        "negative": "No H. pylori infection detected. Continue maintaining good hygiene practices."
+    }
+}
+
+@app.get("/api/scan/emergency")
+def get_emergency_info():
+    """Get emergency information"""
+    return emergency_info
+
+# ============= Infection Statistics =============
+
+@app.get("/api/scan/statistics")
+def get_infection_statistics():
+    """Get infection statistics for display"""
+    total_tests = len(tests_db)
+    positive = sum(1 for t in tests_db.values() if t.get("prediction") == "Positive")
+    negative = sum(1 for t in tests_db.values() if t.get("prediction") == "Negative")
+
+    # Age group analysis
+    age_groups = {"0-18": 0, "19-35": 0, "36-50": 0, "51-65": 0, "65+": 0}
+    age_positive = {"0-18": 0, "19-35": 0, "36-50": 0, "51-65": 0, "65+": 0}
+    for p in patients_db.values():
+        age = p.get("age", 0)
+        if age <= 18:
+            age_groups["0-18"] += 1
+            if any(t.get("patientId") == p.get("id") and t.get("prediction") == "Positive" for t in tests_db.values()):
+                age_positive["0-18"] += 1
+        elif age <= 35:
+            age_groups["19-35"] += 1
+            if any(t.get("patientId") == p.get("id") and t.get("prediction") == "Positive" for t in tests_db.values()):
+                age_positive["19-35"] += 1
+        elif age <= 50:
+            age_groups["36-50"] += 1
+            if any(t.get("patientId") == p.get("id") and t.get("prediction") == "Positive" for t in tests_db.values()):
+                age_positive["36-50"] += 1
+        elif age <= 65:
+            age_groups["51-65"] += 1
+            if any(t.get("patientId") == p.get("id") and t.get("prediction") == "Positive" for t in tests_db.values()):
+                age_positive["51-65"] += 1
+        else:
+            age_groups["65+"] += 1
+            if any(t.get("patientId") == p.get("id") and t.get("prediction") == "Positive" for t in tests_db.values()):
+                age_positive["65+"] += 1
+
+    # Location data (simulated)
+    locations = []
+    for p in patients_db.values():
+        location = p.get("location", {})
+        if location:
+            locations.append({
+                "lat": location.get("lat", 7.8731),
+                "lng": location.get("lng", 80.7718),
+                "prediction": "Positive" if any(t.get("patientId") == p.get("id") and t.get("prediction") == "Positive" for t in tests_db.values()) else "Negative"
+            })
+
+    return {
+        "total_tests": total_tests,
+        "positive": positive,
+        "negative": negative,
+        "positive_rate": round(positive / total_tests * 100, 1) if total_tests > 0 else 0,
+        "age_groups": age_groups,
+        "age_positive": age_positive,
+        "locations": locations
+    }
+
+# ============= Sample Collection Guide =============
+
+sample_guide = {
+    "title": "Saliva Sample Collection Guide",
+    "steps": [
+        "Avoid eating or drinking for 30 minutes before sample collection",
+        "Rinse your mouth with water",
+        "Collect approximately 2ml of saliva in the provided container",
+        "Ensure the sample is clear (avoid frothy saliva)",
+        "Label the container with your patient ID",
+        "Hand the sample to the lab technician"
+    ],
+    "video_url": None
+}
+
+@app.get("/api/scan/guide")
+def get_sample_guide():
+    """Get sample collection guide"""
+    return sample_guide
+
+# ============= Treatment Guide =============
+
+treatment_guide = {
+    "title": "H. pylori Treatment Guide",
+    "if_positive": [
+        {"day": "Days 1-14", "medication": "Amoxicillin 1g twice daily"},
+        {"day": "Days 1-14", "medication": "Clarithromycin 500mg twice daily"},
+        {"day": "Days 1-14", "medication": "PPI (Omeprazole 20mg twice daily)"},
+        {"day": "Note", "medication": "Complete full course even if feeling better"}
+    ],
+    "if_negative": [
+        "No treatment required",
+        "Maintain good oral hygiene",
+        "Avoid sharing utensils",
+        "Regular dental check-ups"
+    ],
+    "diet_recommendations": [
+        "Avoid spicy foods",
+        "Limit caffeine and alcohol",
+        "Eat probiotic foods",
+        "Stay hydrated"
+    ]
+}
+
+@app.get("/api/scan/treatment-guide")
+def get_treatment_guide():
+    """Get treatment guide"""
+    return treatment_guide
+
+# ============= Privacy PIN =============
+
+class SetPIN(BaseModel):
+    patientId: str
+    pin: str
+
+@app.post("/api/scan/pin")
+def set_privacy_pin(request: SetPIN):
+    """Set privacy PIN for patient"""
+    patient = patients_db.get(request.patientId)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    import hashlib
+    patient['privacyPin'] = hashlib.sha256(request.pin.encode()).hexdigest()
+    patients_db[request.patientId] = patient
+    return {"message": "PIN set successfully"}
+
+@app.post("/api/scan/verify-pin")
+def verify_pin(request: SetPIN):
+    """Verify privacy PIN"""
+    import hashlib
+    patient = patients_db.get(request.patientId)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    stored_hash = patient.get('privacyPin')
+    if not stored_hash:
+        raise HTTPException(status_code=404, detail="PIN not set")
+
+    input_hash = hashlib.sha256(request.pin.encode()).hexdigest()
+    if input_hash != stored_hash:
+        raise HTTPException(status_code=403, detail="Invalid PIN")
+
+    return {"verified": True}
+
+# ============= Test History Timeline =============
+
+@app.get("/api/scan/patient/{patient_id}/timeline")
+def get_patient_timeline(patient_id: str, token: str = None):
+    """Get patient's test history as timeline"""
+    patient = patients_db.get(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    patient_token = patient.get('scanToken')
+    if patient_token and token != patient_token:
+        raise HTTPException(status_code=403, detail="Invalid access token")
+
+    # Get all tests sorted by date
+    timeline = []
+    for test_id, test in tests_db.items():
+        if test.get("patientId") == patient_id:
+            timeline.append({
+                "id": test_id,
+                "date": test.get("analyzedAt", "N/A"),
+                "timestamp": test.get("createdAt", ""),
+                "type": test.get("testType", "Nanopaper"),
+                "result": test.get("prediction", "Pending"),
+                "confidence": test.get("confidence", 0),
+                "confirmed": test.get("confirmed", False),
+                "notes": test.get("notes", ""),
+                "prescription": test.get("prescription", "")
+            })
+
+    timeline.sort(key=lambda x: x["timestamp"], reverse=True)
+    return {"timeline": timeline}
+
+# ============= Re-test Reminders =============
+
+class RetestReminder(BaseModel):
+    patientId: str
+    reminderDate: str
+
+retest_reminders_db = {}
+
+@app.post("/api/scan/retest-reminder")
+def create_retest_reminder(reminder: RetestReminder):
+    """Create re-test reminder for patient"""
+    reminder_id = generate_id()
+    retest_reminders_db[reminder_id] = {
+        "id": reminder_id,
+        "patientId": reminder.patientId,
+        "reminderDate": reminder.reminderDate,
+        "createdAt": get_timestamp(),
+        "active": True
+    }
+    return {"message": "Reminder created", "reminderId": reminder_id}
+
+@app.get("/api/scan/patient/{patient_id}/retest")
+def get_retest_reminder(patient_id: str, token: str = None):
+    """Get retest reminder for patient"""
+    patient = patients_db.get(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    patient_token = patient.get('scanToken')
+    if patient_token and token != patient_token:
+        raise HTTPException(status_code=403, detail="Invalid access token")
+
+    reminders = [r for r in retest_reminders_db.values() if r.get("patientId") == patient_id and r.get("active")]
+    return {"reminders": reminders}
+
+# ============= Patient Notes =============
+
+class PatientNote(BaseModel):
+    patientId: str
+    note: str
+
+patient_notes_db = {}
+
+@app.post("/api/scan/patient-note")
+def add_patient_note(note_data: PatientNote):
+    """Patient adds personal note"""
+    note_id = generate_id()
+    patient_notes_db[note_id] = {
+        "id": note_id,
+        "patientId": note_data.patientId,
+        "note": note_data.note,
+        "createdAt": get_timestamp()
+    }
+    return {"message": "Note added", "noteId": note_id}
+
+@app.get("/api/scan/patient/{patient_id}/notes")
+def get_patient_notes(patient_id: str, token: str = None):
+    """Get patient's personal notes"""
+    patient = patients_db.get(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    patient_token = patient.get('scanToken')
+    if patient_token and token != patient_token:
+        raise HTTPException(status_code=403, detail="Invalid access token")
+
+    notes = [n for n in patient_notes_db.values() if n.get("patientId") == patient_id]
+    notes.sort(key=lambda x: x.get("createdAt", ""), reverse=True)
+    return {"notes": notes}
+
+# ============= Family Account =============
+
+class FamilyMember(BaseModel):
+    familyId: str
+    memberId: str
+
+family_db = {}
+
+@app.post("/api/scan/family/link")
+def link_family_member(member: FamilyMember):
+    """Link family member to primary patient"""
+    if member.familyId not in family_db:
+        family_db[member.familyId] = {"members": [], "primary": member.familyId}
+
+    if member.memberId not in family_db[member.familyId]["members"]:
+        family_db[member.familyId]["members"].append(member.memberId)
+
+    return {"message": "Family member linked"}
+
+@app.get("/api/scan/family/{patient_id}")
+def get_family_results(patient_id: str, token: str = None):
+    """Get results for patient's family members"""
+    patient = patients_db.get(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    patient_token = patient.get('scanToken')
+    if patient_token and token != patient_token:
+        raise HTTPException(status_code=403, detail="Invalid access token")
+
+    # Find family group
+    family_data = None
+    for fam in family_db.values():
+        if patient_id in fam.get("members", []) or patient_id == fam.get("primary"):
+            family_data = fam
+            break
+
+    if not family_data:
+        return {"family": [], "message": "No family members linked"}
+
+    # Get results for all family members
+    family_results = []
+    for member_id in family_data.get("members", []):
+        member = patients_db.get(member_id)
+        if member:
+            member_tests = [t for t in tests_db.values() if t.get("patientId") == member_id]
+            latest = max(member_tests, key=lambda x: x.get("analyzedAt", "")) if member_tests else {}
+            family_results.append({
+                "patientId": member_id,
+                "name": member.get("name"),
+                "latestResult": latest.get("prediction", "No tests"),
+                "latestDate": latest.get("analyzedAt", "N/A")
+            })
+
+    return {"family": family_results}
+
+# ============= Two-Factor Authentication =============
+
+class TwoFactorSetup(BaseModel):
+    userId: str
+    secret: str
+
+two_factor_db = {}
+
+def generate_2fa_secret():
+    import secrets
+    return secrets.token_hex(16)
+
+@app.post("/api/auth/2fa/setup")
+def setup_2fa(userId: str):
+    """Setup 2FA for user"""
+    secret = generate_2fa_secret()
+    two_factor_db[userId] = {"secret": secret, "enabled": False}
+    return {"secret": secret, "message": "2FA secret generated. Save this secret in your authenticator app."}
+
+@app.post("/api/auth/2fa/enable")
+def enable_2fa(userId: str, code: str):
+    """Enable 2FA after verification"""
+    # In production, verify code with authenticator app
+    if userId in two_factor_db:
+        two_factor_db[userId]["enabled"] = True
+        return {"message": "2FA enabled"}
+    raise HTTPException(status_code=404, detail="2FA not setup")
+
+@app.post("/api/auth/2fa/verify")
+def verify_2fa(userId: str, code: str):
+    """Verify 2FA code during login"""
+    # In production, verify code with authenticator app
+    if userId in two_factor_db and two_factor_db[userId].get("enabled"):
+        # Accept any 6-digit code for demo
+        if len(code) == 6 and code.isdigit():
+            return {"verified": True}
+        return {"verified": False}
+    return {"verified": True}  # No 2FA enabled
+
+@app.get("/api/auth/2fa/status")
+def get_2fa_status(userId: str):
+    """Get 2FA status for user"""
+    if userId in two_factor_db:
+        return {"enabled": two_factor_db[userId].get("enabled", False)}
+    return {"enabled": False}
+
+# ============= Public API =============
+
+@app.get("/api/public/stats")
+def public_stats():
+    """Public statistics (no sensitive data)"""
+    total_tests = len(tests_db)
+    positive = sum(1 for t in tests_db.values() if t.get("prediction") == "Positive")
+    return {
+        "total_tests": total_tests,
+        "positive_cases": positive,
+        "negative_cases": total_tests - positive,
+        "positive_rate": round(positive / total_tests * 100, 1) if total_tests > 0 else 0
+    }
+
+# ============= Voice Results =============
+
+@app.get("/api/scan/patient/{patient_id}/voice")
+def get_voice_result(patient_id: str, token: str = None):
+    """Get text-to-speech result for patient"""
+    patient = patients_db.get(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    patient_token = patient.get('scanToken')
+    if patient_token and token != patient_token:
+        raise HTTPException(status_code=403, detail="Invalid access token")
+
+    # Get latest test
+    patient_tests = [t for t in tests_db.values() if t.get("patientId") == patient_id]
+    latest = max(patient_tests, key=lambda x: x.get("analyzedAt", "")) if patient_tests else {}
+
+    result = latest.get("prediction", "Pending")
+    text = f"Hello {patient.get('name')}. Your H. pylori test result is {result}."
+    if result == "Positive":
+        text += " Please consult your doctor for treatment."
+    else:
+        text += " You do not have an H. pylori infection."
+
+    return {"text": text, "result": result}
 
 # ============= Data Export/Backup Endpoints =============
 

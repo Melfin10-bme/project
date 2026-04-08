@@ -17,6 +17,7 @@ import Register from './pages/Register';
 import Users from './pages/Users';
 import PatientLogin from './pages/PatientLogin';
 import PatientPortal from './pages/PatientPortal';
+import PatientScanResult from './pages/PatientScanResult';
 import BackupExport from './pages/BackupExport';
 import AuditLogs from './pages/AuditLogs';
 import Sessions from './pages/Sessions';
@@ -69,6 +70,9 @@ function App() {
             <Route path="/register" element={<Register showToast={showToast} />} />
             <Route path="/patient-login" element={<PatientLogin showToast={showToast} />} />
             <Route path="/patient-portal" element={<PatientPortal showToast={showToast} />} />
+            {/* Public scan routes - accessible via QR code without login */}
+            <Route path="/scan/:patientId" element={<PatientScanResult />} />
+            <Route path="/scan/:patientId/:testId" element={<PatientScanResult />} />
             <Route path="*" element={<Navigate to="/login" />} />
           </Routes>
           {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

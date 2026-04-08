@@ -21,37 +21,24 @@ function PatientProfile({ showToast }) {
   const [loading, setLoading] = useState(true);
   const [patientQR, setPatientQR] = useState(null);
   const [testQR, setTestQR] = useState(null);
+  const [patientQRLoading, setPatientQRLoading] = useState(false);
+  const [testQRLoading, setTestQRLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmData, setConfirmData] = useState({ confirmedBy: '', confirmSignature: '' });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const patientData = await getPatient(id);
+        // Fetch patient and tests in parallel
+        const [patientData, allTests] = await Promise.all([
+          getPatient(id),
+          getTests(id)
+        ]);
         setPatient(patientData);
-
-        // Load patient QR code
-        try {
-          const qr = await generatePatientQR(id);
-          console.log('Patient QR loaded:', qr.qrCode ? 'success' : 'empty');
-          setPatientQR(qr.qrCode);
-        } catch (e) {
-          console.error('Patient QR error:', e);
-        }
-
-        const allTests = await getTests(id);
         setTests(allTests.reverse());
 
         if (allTests.length > 0) {
           setSelectedTest(allTests[0]);
-          // Load test QR code
-          try {
-            const tqr = await generateTestQR(allTests[0].id);
-            console.log('Test QR loaded:', tqr.qrCode ? 'success' : 'empty');
-            setTestQR(tqr.qrCode);
-          } catch (e) {
-            console.error('Test QR error:', e);
-          }
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -63,6 +50,34 @@ function PatientProfile({ showToast }) {
 
     fetchData();
   }, [id]);
+
+  const loadPatientQR = async () => {
+    if (patientQR) return;
+    setPatientQRLoading(true);
+    try {
+      const qr = await generatePatientQR(id);
+      setPatientQR(qr.qrCode);
+    } catch (e) {
+      console.error('Patient QR error:', e);
+      showToast('Failed to load QR code', 'error');
+    } finally {
+      setPatientQRLoading(false);
+    }
+  };
+
+  const loadTestQR = async () => {
+    if (!selectedTest || testQR) return;
+    setTestQRLoading(true);
+    try {
+      const tqr = await generateTestQR(selectedTest.id);
+      setTestQR(tqr.qrCode);
+    } catch (e) {
+      console.error('Test QR error:', e);
+      showToast('Failed to load QR code', 'error');
+    } finally {
+      setTestQRLoading(false);
+    }
+  };
 
   const handleConfirmTest = async () => {
     if (!selectedTest) return;
@@ -79,16 +94,9 @@ function PatientProfile({ showToast }) {
     }
   };
 
-  const handleTestSelect = async (test) => {
+  const handleTestSelect = (test) => {
     setSelectedTest(test);
     setTestQR(null);
-    try {
-      const tqr = await generateTestQR(test.id);
-      console.log('Test QR loaded on select:', tqr.qrCode ? 'success' : 'empty');
-      setTestQR(tqr.qrCode);
-    } catch (e) {
-      console.error('Test QR error on select:', e);
-    }
   };
 
   const handleGenerateReport = async (format) => {
@@ -187,12 +195,23 @@ function PatientProfile({ showToast }) {
         </div>
 
         {/* QR Code Section */}
-        {patientQR && (
-          <div className="mt-4 p-4 bg-slate-700/50 rounded-xl">
-            <h3 className="text-sm font-medium text-white mb-2">Patient QR Code</h3>
-            <img src={patientQR} alt="Patient QR" className="w-24 h-24" />
-          </div>
-        )}
+        <div className="mt-4 p-4 bg-slate-700/50 rounded-xl">
+          <h3 className="text-sm font-medium text-white mb-2">Patient QR Code (Scan with Mobile)</h3>
+          {patientQR ? (
+            <>
+              <img src={patientQR} alt="Patient QR" className="w-40 h-40" />
+              <p className="text-xs text-slate-400 mt-2">Shows patient ID, name & disease status</p>
+            </>
+          ) : (
+            <button
+              onClick={loadPatientQR}
+              disabled={patientQRLoading}
+              className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white text-sm rounded-lg transition-colors disabled:opacity-50"
+            >
+              {patientQRLoading ? 'Loading...' : 'Load QR Code'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -339,10 +358,23 @@ function PatientProfile({ showToast }) {
         </div>
 
         {/* Test QR Code */}
-        {testQR && selectedTest && (
+        {selectedTest && (
           <div className="mt-4 p-4 bg-slate-700/50 rounded-xl">
-            <h3 className="text-sm font-medium text-white mb-2">Test QR Code</h3>
-            <img src={testQR} alt="Test QR" className="w-24 h-24" />
+            <h3 className="text-sm font-medium text-white mb-2">Test QR Code (Scan with Mobile)</h3>
+            {testQR ? (
+              <>
+                <img src={testQR} alt="Test QR" className="w-40 h-40" />
+                <p className="text-xs text-slate-400 mt-2">Shows test details & result</p>
+              </>
+            ) : (
+              <button
+                onClick={loadTestQR}
+                disabled={testQRLoading}
+                className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white text-sm rounded-lg transition-colors disabled:opacity-50"
+              >
+                {testQRLoading ? 'Loading...' : 'Load QR Code'}
+              </button>
+            )}
           </div>
         )}
       </div>

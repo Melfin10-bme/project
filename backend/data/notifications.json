@@ -7,5 +7,21 @@
     "type": "warning",
     "read": false,
     "createdAt": "2026-04-05T11:03:30.039333"
+  },
+  "cb8348e0-ed04-42d7-9e86-09c6a9ab4c04": {
+    "id": "cb8348e0-ed04-42d7-9e86-09c6a9ab4c04",
+    "type": "appointment_request",
+    "title": "New Appointment Request",
+    "message": "James Thomas requested an appointment for 2026-04-24 at 19:39",
+    "read": false,
+    "createdAt": "2026-04-07T19:39:29.801856"
+  },
+  "97392e8a-f5b0-4225-8086-8818e861e1bc": {
+    "id": "97392e8a-f5b0-4225-8086-8818e861e1bc",
+    "type": "appointment_request",
+    "title": "New Appointment Request",
+    "message": "James Thomas requested an appointment for 2026-04-07 at 07:35",
+    "read": false,
+    "createdAt": "2026-04-07T19:48:13.159054"
   }
 }
