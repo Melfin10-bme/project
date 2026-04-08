@@ -1,3 +1,6 @@
+build:
+  pipArgs: ["--python", "3.11"]
+
 services:
   - type: web
     name: hpylori-backend
@@ -6,8 +9,6 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: FRONTEND_URL
-        value: https://your-app.netlify.app
-      - key: PYTHON_VERSION
-        value: 3.11
+        value: https://your-netlify-site.netlify.app
     plan: free
     autoDeploy: true
