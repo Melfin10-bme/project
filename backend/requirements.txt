@@ -10,6 +10,5 @@ httpx
 python-dotenv
 python-jose
 passlib
-bcrypt
 qrcode
 scikit-learn
