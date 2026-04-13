@@ -332,7 +332,8 @@
     "phone": "+1-555-964-9039",
     "address": "827 Cedar Street, Phoenix",
     "createdAt": "2026-04-05T10:52:49.407715",
-    "updatedAt": "2026-04-05T10:52:49.407717"
+    "updatedAt": "2026-04-05T10:52:49.407717",
+    "scanToken": "b087ebf069342e8b"
   },
   "d44bd42b-e1f6-4b20-80cd-340e1fc6a095": {
     "id": "d44bd42b-e1f6-4b20-80cd-340e1fc6a095",
