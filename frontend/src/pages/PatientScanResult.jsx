@@ -442,6 +442,8 @@ function PatientScanResult() {
             <p className={`text-2xl font-mono font-bold ${textClass} mb-3`}>{patient.id}</p>
             <p className={`text-xl font-semibold ${textClass}`}>{patient.name}</p>
             <p className={`${textMuted} text-sm`}>{patient.age} yrs • {patient.gender}</p>
+            {patient.email && <p className={`${textMuted} text-sm`}>{patient.email}</p>}
+            {patient.phone && <p className={`${textMuted} text-sm`}>{patient.phone}</p>}
           </div>
         </div>
 
