@@ -43,6 +43,10 @@ function PatientScanResult() {
   const [showDoctor, setShowDoctor] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showInsurance, setShowInsurance] = useState(false);
+  const [showAmbulance, setShowAmbulance] = useState(false);
+  const [showPharmacy, setShowPharmacy] = useState(false);
+  const [showHospital, setShowHospital] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
   const [retestDate, setRetestDate] = useState('');
   const [appointmentForm, setAppointmentForm] = useState({
     patientName: '',
@@ -103,7 +107,12 @@ function PatientScanResult() {
       bloodType: 'Blood Type',
       allergies: 'Allergies',
       emergencyContact: 'Emergency Contact',
-      nextAppointment: 'Next Appointment'
+      nextAppointment: 'Next Appointment',
+      ambulance: 'Ambulance',
+      pharmacy: 'Pharmacy',
+      hospital: 'Nearby Hospital',
+      progress: 'Progress',
+      bookAppointment: 'Book Appointment'
     },
     si: {
       patientId: 'රෝගියාගේ ID',
@@ -549,6 +558,18 @@ function PatientScanResult() {
           <button onClick={() => setShowInsurance(!showInsurance)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
             🏥 {t.insurance}
           </button>
+          <button onClick={() => setShowAmbulance(!showAmbulance)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
+            🚑 {t.ambulance}
+          </button>
+          <button onClick={() => setShowPharmacy(!showPharmacy)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
+            💊 {t.pharmacy}
+          </button>
+          <button onClick={() => setShowHospital(!showHospital)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
+            🏥 {t.hospital}
+          </button>
+          <button onClick={() => setShowProgress(!showProgress)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
+            📈 {t.progress}
+          </button>
           <button onClick={() => setPinMode(true)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
             🔒 {t.setPin}
           </button>
@@ -818,6 +839,92 @@ function PatientScanResult() {
               <button onClick={handleDownloadPdf} className="w-full bg-blue-600 text-white py-2 rounded-lg mt-2">
                 📄 Download Claim Form
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Ambulance */}
+        {showAmbulance && (
+          <div className={`${cardClass} rounded-xl p-5 mb-4`}>
+            <h3 className={`font-semibold ${textClass} mb-3`}>🚑 {t.ambulance}</h3>
+            <div className="space-y-2">
+              <a href="tel:1999" className="block w-full bg-red-600 text-white text-center py-3 rounded-lg font-medium">
+                📞 Call Ambulance: 1999
+              </a>
+              <a href="tel:0112691111" className="block w-full bg-teal-600 text-white text-center py-2 rounded-lg">
+                🏥 National Hospital: 011-269-1111
+              </a>
+              <a href="tel:0112581111" className="block w-full bg-teal-600 text-white text-center py-2 rounded-lg">
+                🏥 Colombo East: 011-258-1111
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Pharmacy */}
+        {showPharmacy && (
+          <div className={`${cardClass} rounded-xl p-5 mb-4`}>
+            <h3 className={`font-semibold ${textClass} mb-3`}>💊 {t.pharmacy}</h3>
+            <div className={`${textClass} text-sm space-y-2`}>
+              <p>Nearby Pharmacies:</p>
+              <div className={`${darkMode ? 'bg-slate-700' : 'bg-gray-200'} p-3 rounded-lg`}>
+                <p className="font-medium">Green Cross Pharmacy</p>
+                <p className={textMuted}>📍 Colombo 07 • Open 24/7</p>
+                <p className={textMuted}>📞 011-234-5678</p>
+              </div>
+              <div className={`${darkMode ? 'bg-slate-700' : 'bg-gray-200'} p-3 rounded-lg`}>
+                <p className="font-medium">Pharmadip</p>
+                <p className={textMuted}>📍 Borella • Open 24/7</p>
+                <p className={textMuted}>📞 011-234-5679</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hospital */}
+        {showHospital && (
+          <div className={`${cardClass} rounded-xl p-5 mb-4`}>
+            <h3 className={`font-semibold ${textClass} mb-3`}>🏥 {t.hospital}</h3>
+            <div className={`${textClass} text-sm space-y-2`}>
+              <p>Nearby Hospitals:</p>
+              <a href="https://maps.google.com/?q=hospital+colombo" target="_blank" rel="noopener noreferrer" className={`${darkMode ? 'bg-slate-700' : 'bg-gray-200'} p-3 rounded-lg block`}>
+                <p className="font-medium">🏥 National Hospital of Sri Lanka</p>
+                <p className={textMuted}>📍 Colombo 10 • 2.5km away</p>
+              </a>
+              <a href="https://maps.google.com/?q=hospital+borella" target="_blank" rel="noopener noreferrer" className={`${darkMode ? 'bg-slate-700' : 'bg-gray-200'} p-3 rounded-lg block`}>
+                <p className="font-medium">🏥 Lady Ridgway Hospital</p>
+                <p className={textMuted}>📍 Borella • 3km away</p>
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Progress */}
+        {showProgress && tests.length > 0 && (
+          <div className={`${cardClass} rounded-xl p-5 mb-4`}>
+            <h3 className={`font-semibold ${textClass} mb-3`}>📈 {t.progress}</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className={textMuted}>Total Tests</span>
+                <span className={textClass}>{tests.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className={textMuted}>Positive</span>
+                <span className="text-red-500">{tests.filter(t => t.prediction === 'Positive').length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className={textMuted}>Negative</span>
+                <span className="text-green-500">{tests.filter(t => t.prediction === 'Negative').length}</span>
+              </div>
+              <div className="mt-2">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className={textMuted}>Infection Rate</span>
+                  <span className={textClass}>{Math.round(tests.filter(t => t.prediction === 'Positive').length / tests.length * 100)}%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div className="bg-red-500 h-2 rounded-full" style={{width: `${tests.filter(t => t.prediction === 'Positive').length / tests.length * 100}%`}}></div>
+                </div>
+              </div>
             </div>
           </div>
         )}
