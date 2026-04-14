@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
 SECRET_KEY = "h-pylori-detection-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")  # For QR code links
+FRONTEND_URL = "https://frontebd.netlify.app"  # For QR code links
 
 def verify_password(plain_password, hashed_password):
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
