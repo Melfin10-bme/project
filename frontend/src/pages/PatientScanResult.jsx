@@ -38,6 +38,11 @@ function PatientScanResult() {
   const [familyData, setFamilyData] = useState([]);
   const [showAgeAnalysis, setShowAgeAnalysis] = useState(false);
   const [showRetest, setShowRetest] = useState(false);
+  const [showPrescription, setShowPrescription] = useState(false);
+  const [showDiet, setShowDiet] = useState(false);
+  const [showDoctor, setShowDoctor] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showInsurance, setShowInsurance] = useState(false);
   const [retestDate, setRetestDate] = useState('');
   const [appointmentForm, setAppointmentForm] = useState({
     patientName: '',
@@ -88,7 +93,17 @@ function PatientScanResult() {
       retestReminder: 'Re-test Reminder',
       setReminder: 'Set Reminder',
       positive: 'Positive',
-      ageGroup: 'Age Group'
+      ageGroup: 'Age Group',
+      prescription: 'Prescription',
+      diet: 'Diet Plan',
+      contactDoctor: 'Contact Doctor',
+      medicalHistory: 'Medical History',
+      insurance: 'Insurance',
+      confirmed: 'Confirmed',
+      bloodType: 'Blood Type',
+      allergies: 'Allergies',
+      emergencyContact: 'Emergency Contact',
+      nextAppointment: 'Next Appointment'
     },
     si: {
       patientId: 'රෝගියාගේ ID',
@@ -519,6 +534,21 @@ function PatientScanResult() {
           <button onClick={() => setShowRetest(!showRetest)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
             ⏰ {t.retestReminder}
           </button>
+          <button onClick={() => setShowPrescription(!showPrescription)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
+            💊 {t.prescription}
+          </button>
+          <button onClick={() => setShowDiet(!showDiet)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
+            🥗 {t.diet}
+          </button>
+          <button onClick={() => setShowDoctor(!showDoctor)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
+            👨‍⚕️ {t.contactDoctor}
+          </button>
+          <button onClick={() => setShowHistory(!showHistory)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
+            📋 {t.medicalHistory}
+          </button>
+          <button onClick={() => setShowInsurance(!showInsurance)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
+            🏥 {t.insurance}
+          </button>
           <button onClick={() => setPinMode(true)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
             🔒 {t.setPin}
           </button>
@@ -689,6 +719,106 @@ function PatientScanResult() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* Prescription */}
+        {showPrescription && latestTest && (
+          <div className={`${cardClass} rounded-xl p-5 mb-4`}>
+            <h3 className={`font-semibold ${textClass} mb-3`}>💊 {t.prescription}</h3>
+            {latestTest.prescription ? (
+              <div className={`${textClass} text-sm`}>
+                <pre className="whitespace-pre-wrap">{latestTest.prescription}</pre>
+              </div>
+            ) : isPositive ? (
+              <div className={`${textClass} text-sm space-y-2`}>
+                <p><strong>Day 1-14:</strong> Amoxicillin 1g twice daily</p>
+                <p><strong>Day 1-14:</strong> Clarithromycin 500mg twice daily</p>
+                <p><strong>Day 1-14:</strong> Omeprazole 20mg twice daily</p>
+                <p className={`${textMuted} mt-2`}>* Complete full course as prescribed</p>
+              </div>
+            ) : (
+              <p className={textMuted}>No prescription needed</p>
+            )}
+          </div>
+        )}
+
+        {/* Diet Plan */}
+        {showDiet && (
+          <div className={`${cardClass} rounded-xl p-5 mb-4`}>
+            <h3 className={`font-semibold ${textClass} mb-3`}>🥗 {t.diet}</h3>
+            {isPositive ? (
+              <div className={`${textClass} text-sm space-y-2`}>
+                <p>✅ Eat probiotic foods (yogurt, kefir)</p>
+                <p>✅ Stay hydrated</p>
+                <p>✅ Eat fiber-rich foods</p>
+                <p>❌ Avoid spicy foods</p>
+                <p>❌ Limit caffeine and alcohol</p>
+                <p>❌ Avoid fried foods</p>
+              </div>
+            ) : (
+              <div className={`${textClass} text-sm space-y-2`}>
+                <p>✅ Maintain good oral hygiene</p>
+                <p>✅ Regular dental check-ups</p>
+                <p>✅ Avoid sharing utensils</p>
+                <p>✅ Eat balanced diet</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Contact Doctor */}
+        {showDoctor && (
+          <div className={`${cardClass} rounded-xl p-5 mb-4`}>
+            <h3 className={`font-semibold ${textClass} mb-3`}>👨‍⚕️ {t.contactDoctor}</h3>
+            <div className="space-y-2">
+              <a href="tel:1999" className="block w-full bg-teal-600 text-white text-center py-2 rounded-lg">
+                📞 Call Helpline: 1999
+              </a>
+              <a href="https://wa.me/94762661414" target="_blank" rel="noopener noreferrer" className="block w-full bg-green-600 text-white text-center py-2 rounded-lg">
+                💬 WhatsApp Doctor
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Medical History */}
+        {showHistory && tests.length > 0 && (
+          <div className={`${cardClass} rounded-xl p-5 mb-4`}>
+            <h3 className={`font-semibold ${textClass} mb-3`}>📋 {t.medicalHistory}</h3>
+            <div className="space-y-3">
+              {tests.map((test, i) => (
+                <div key={i} className={`${darkMode ? 'bg-slate-700' : 'bg-gray-200'} p-3 rounded-lg`}>
+                  <div className="flex justify-between">
+                    <span className={textClass}>{test.testType || 'Nanopaper'}</span>
+                    <span className={test.prediction === 'Positive' ? 'text-red-500' : 'text-green-500'}>
+                      {test.prediction}
+                    </span>
+                  </div>
+                  <p className={`${textMuted} text-xs`}>{test.analyzedAt}</p>
+                  {test.notes && <p className={`${textMuted} text-xs mt-1`}>Note: {test.notes}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Insurance */}
+        {showInsurance && (
+          <div className={`${cardClass} rounded-xl p-5 mb-4`}>
+            <h3 className={`font-semibold ${textClass} mb-3`}>🏥 {t.insurance}</h3>
+            <div className={`${textClass} text-sm space-y-2`}>
+              <p>For insurance claims, please contact your insurance provider with:</p>
+              <div className={`${darkMode ? 'bg-slate-700' : 'bg-gray-200'} p-2 rounded`}>
+                <p><strong>Patient ID:</strong> {patient.id}</p>
+                <p><strong>Name:</strong> {patient.name}</p>
+                <p><strong>Test Date:</strong> {latestTest?.analyzedAt || 'N/A'}</p>
+                <p><strong>Result:</strong> {latestTest?.prediction || 'N/A'}</p>
+              </div>
+              <button onClick={handleDownloadPdf} className="w-full bg-blue-600 text-white py-2 rounded-lg mt-2">
+                📄 Download Claim Form
+              </button>
+            </div>
           </div>
         )}
 
