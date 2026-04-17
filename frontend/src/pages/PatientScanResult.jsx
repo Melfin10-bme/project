@@ -6,6 +6,7 @@ function PatientScanResult() {
   const [searchParams] = useSearchParams();
   const [patient, setPatient] = useState(null);
   const [tests, setTests] = useState([]);
+  const [microbiome, setMicrobiome] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAppointment, setShowAppointment] = useState(false);
@@ -47,6 +48,7 @@ function PatientScanResult() {
   const [showPharmacy, setShowPharmacy] = useState(false);
   const [showHospital, setShowHospital] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
+  const [showMicrobiome, setShowMicrobiome] = useState(false);
   const [retestDate, setRetestDate] = useState('');
   const [appointmentForm, setAppointmentForm] = useState({
     patientName: '',
@@ -112,7 +114,10 @@ function PatientScanResult() {
       pharmacy: 'Pharmacy',
       hospital: 'Nearby Hospital',
       progress: 'Progress',
-      bookAppointment: 'Book Appointment'
+      bookAppointment: 'Book Appointment',
+      microbiome: 'Microbiome',
+      goodBacteria: 'Good Bacteria',
+      badBacteria: 'Bad Bacteria'
     },
     si: {
       patientId: 'රෝගියාගේ ID',
@@ -206,6 +211,7 @@ function PatientScanResult() {
         const data = await response.json();
         setPatient(data.patient);
         setTests(data.tests || []);
+        setMicrobiome(data.microbiome || null);
         setAppointmentForm(prev => ({
           ...prev,
           patientName: data.patient.name || '',
@@ -570,6 +576,9 @@ function PatientScanResult() {
           <button onClick={() => setShowProgress(!showProgress)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
             📈 {t.progress}
           </button>
+          <button onClick={() => setShowMicrobiome(!showMicrobiome)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
+            🦠 {t.microbiome}
+          </button>
           <button onClick={() => setPinMode(true)} className={`${cardClass} py-3 rounded-xl ${textClass} text-sm`}>
             🔒 {t.setPin}
           </button>
@@ -924,6 +933,42 @@ function PatientScanResult() {
                 <div className="w-full bg-slate-700 rounded-full h-2">
                   <div className="bg-red-500 h-2 rounded-full" style={{width: `${tests.filter(t => t.prediction === 'Positive').length / tests.length * 100}%`}}></div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Microbiome Analysis */}
+        {showMicrobiome && microbiome && (
+          <div className={`${cardClass} rounded-xl p-5 mb-4`}>
+            <h3 className={`font-semibold ${textClass} mb-3`}>🦠 {t.microbiome}</h3>
+            <div className="space-y-3">
+              <div className="text-center mb-4">
+                <span className={`text-lg font-bold ${microbiome.status === 'Healthy' ? 'text-green-500' : microbiome.status === 'Infection Detected' ? 'text-red-500' : textClass}`}>
+                  {microbiome.status}
+                </span>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-green-500">✓ {t.goodBacteria}</span>
+                  <span className="text-green-500 font-bold">{microbiome.good_bacteria_percent}%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-3">
+                  <div className="bg-green-500 h-3 rounded-full" style={{width: `${microbiome.good_bacteria_percent}%`}}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm mb-1 mt-2">
+                  <span className="text-red-500">✗ {t.badBacteria}</span>
+                  <span className="text-red-500 font-bold">{microbiome.bad_bacteria_percent}%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-3">
+                  <div className="bg-red-500 h-3 rounded-full" style={{width: `${microbiome.bad_bacteria_percent}%`}}></div>
+                </div>
+              </div>
+              <div className={`mt-3 p-2 ${darkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded text-xs ${textMuted}`}>
+                <p>Healthy Goal: Good ~80%, Bad ~20%</p>
+                <p>H. pylori: Good Low, Bad 40-97%</p>
               </div>
             </div>
           </div>

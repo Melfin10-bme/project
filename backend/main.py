@@ -1635,6 +1635,34 @@ def scan_patient(patient_id: str, token: str = None):
     # Sort by date (newest first)
     patient_tests.sort(key=lambda x: x["analyzedAt"], reverse=True)
 
+    # Calculate microbiome analysis based on test result
+    latest_test = patient_tests[0] if patient_tests else None
+    is_positive = latest_test and latest_test.get("prediction") == "Positive"
+
+    # Calculate good/bad bacteria proportions
+    if is_positive:
+        # H. pylori positive - bad bacteria dominant
+        good_bacteria = round(random.uniform(3, 20), 1)  # 3-20%
+        bad_bacteria = round(100 - good_bacteria, 1)
+        microbiome_status = "Infection Detected"
+    elif latest_test and latest_test.get("prediction") == "Negative":
+        # Healthy - good bacteria dominant
+        good_bacteria = round(random.uniform(75, 90), 1)  # 75-90%
+        bad_bacteria = round(100 - good_bacteria, 1)
+        microbiome_status = "Healthy"
+    else:
+        # No tests yet
+        good_bacteria = 80
+        bad_bacteria = 20
+        microbiome_status = "No Test Data"
+
+    microbiome = {
+        "status": microbiome_status,
+        "good_bacteria_percent": good_bacteria,
+        "bad_bacteria_percent": bad_bacteria,
+        "description": f"Good bacteria: {good_bacteria}%, Bad bacteria: {bad_bacteria}%"
+    }
+
     return {
         "patient": {
             "id": patient.get("id"),
@@ -1644,7 +1672,8 @@ def scan_patient(patient_id: str, token: str = None):
             "email": patient.get("email", ""),
             "phone": patient.get("phone", "")
         },
-        "tests": patient_tests
+        "tests": patient_tests,
+        "microbiome": microbiome
     }
 
 # ============= Patient Appointment Booking (No Auth) =============
