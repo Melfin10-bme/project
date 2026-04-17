@@ -1,0 +1,2 @@
+# Netlify redirects - proxy API calls to backend
+/api/*  https://project-5-wkps.onrender.com/api/:splat  200
